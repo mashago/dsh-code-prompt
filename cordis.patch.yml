@@ -1,0 +1,20 @@
+# dsh-code-prompt bundle layer
+#
+# Inserts the plugin globally. The plugin registers:
+# - a global system section `dsh-code-prompt:engineering-rules` (order 100);
+# - per-agent tool-description shadows for bash/read/edit/write;
+# - optional B2 result shaping for edit no-match errors and bash exit markers;
+# - optional B3 environment context (platform/OS/shell/git repository).
+#
+# Every feature can be disabled per deployment by overriding this row's config
+# in the profile patch. `toolResults` is stopped after a no-gain A/B;
+# `environment` has a modest positive signal but is also off by default pending
+# a real web-session check.
+- insert:
+    - id: dsh-code-prompt
+      name: dsh-code-prompt
+      config:
+        rules: true
+        toolDescriptions: true
+        toolResults: false
+        environment: false

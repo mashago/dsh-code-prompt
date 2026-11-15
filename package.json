@@ -1,0 +1,40 @@
+{
+  "name": "dsh-code-prompt",
+  "version": "0.1.0",
+  "description": "Claude-Code-style prompt, tool-description, and environment-context levers for DeepSeek Harness (DSH).",
+  "type": "module",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "bundle",
+    "prompt",
+    "claude-code",
+    "tool-descriptions",
+    "context"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mashago/dsh-code-prompt.git"
+  },
+  "homepage": "https://github.com/mashago/dsh-code-prompt#readme",
+  "bugs": {
+    "url": "https://github.com/mashago/dsh-code-prompt/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+  }
+}
