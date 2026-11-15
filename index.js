@@ -165,7 +165,17 @@ function installToolDescriptions(ctx, config) {
       if (done.has(toolName)) continue
       const original = tools.get(toolName, scope)
       if (original === undefined) continue
-      tools.register({ ...original, description })
+      // A live session can outlive this plugin instance (HMR or reinstall).
+      // If its scope already exposes this replacement, re-registering throws.
+      if (original.description === description) {
+        done.add(toolName)
+        continue
+      }
+      try {
+        tools.register({ ...original, description })
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes('already registered in this scope')) throw error
+      }
       done.add(toolName)
     }
   }

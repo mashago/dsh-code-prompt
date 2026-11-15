@@ -123,6 +123,12 @@ dedicated task.
 - Node 24+ (as required by DSH)
 - No build step; plain ESM
 
+## Upgrading
+
+Replacing the bundle while a session is live can leave that session's agent
+scope with the previous tool shadows. Start a new session after an upgrade;
+new sessions always see the current descriptions.
+
 ## Development
 
 ```sh
