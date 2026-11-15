@@ -27,8 +27,10 @@ are outside its scope.
 From npm:
 
 ```sh
-dsh plugin --profile <profile> add dsh-code-prompt
+dsh plugin --profile web add dsh-code-prompt
 ```
+
+Replace `web` with your profile name if you use another profile.
 
 From a local checkout:
 
