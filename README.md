@@ -3,17 +3,18 @@
 Claude-Code-style prompt, tool-description, and environment-context levers for
 DeepSeek Harness (DSH).
 
-`dsh-code-prompt` is a DSH bundle that adds global engineering rules, replaces
-the model-facing descriptions of selected tools, and optionally shapes tool
-results or injects environment facts. It does not change tool implementations,
-parameter schemas, sandbox behavior, or filesystem semantics.
+`dsh-code-prompt` is a DSH bundle that adds global engineering rules, appends
+DSH-specific guidance to selected tool descriptions (or fully replaces them when
+configured), and optionally shapes tool results or injects environment facts. It
+does not change tool implementations, parameter schemas, sandbox behavior, or
+filesystem semantics.
 
 ## Features
 
 | Feature | What it does | Default |
 |---|---|---|
 | A1 Engineering rules | Nine global rules: minimal change, no one-off abstraction, no impossible-scenario defenses, verify before done, diagnose before retry, parallel independent calls, confirm destructive actions, concise output, edit over rewrite | on |
-| A2 Tool descriptions | Replaces the model-facing descriptions for `bash`, `pwsh`, `read`, `edit`, and `write` | on |
+| A2 Tool descriptions | Appends DSH-specific guidance to `bash`, `read`, `edit`, and `write`; adds a Windows PowerShell 5.1 note to `pwsh`. `descriptions` can fully replace a tool description instead | on |
 | B2 Result shaping | Front-loads shell exit codes and adds an edit no-match hint | off |
 | B3 Environment context | Adds platform, OS version, shell, and git repository to the session context | off |
 
@@ -60,7 +61,12 @@ When overriding the row yourself, write all four keys. Options:
 - `enabled` — set `false` to disable the whole bundle.
 - `rules` — enable A1 with `true`.
 - `toolDescriptions` — set `false` to disable A2.
-- `descriptions` — per-tool replacement text, e.g. `{ bash: '...' }`.
+- `descriptions` — per-tool **full replacement** text (0.1.x-compatible),
+  e.g. `{ bash: '...' }`.
+- `additions` — per-tool **suffix** appended to the upstream description,
+  e.g. `{ read: '...' }`. Defaults to the bundle's built-in suffixes. If a tool
+  is set in both, `descriptions` wins. Set a tool to `''` in `additions` to
+  keep only the upstream description for that tool.
 - `toolResults` — B2; `true`, or an object such as
   `{ editNoMatch: true, shellExitFront: true }` (`bashExitFront` is accepted as
   an alias for `shellExitFront`).
@@ -68,8 +74,9 @@ When overriding the row yourself, write all four keys. Options:
 
 ## Windows
 
-On Windows DSH registers `pwsh` instead of `bash`. A2 ships a PowerShell-specific
-description, B2 front-loads pwsh exit codes, and B3 reports `Shell: pwsh`.
+On Windows DSH registers `pwsh` instead of `bash`. A2 appends a short 5.1 note
+to the upstream pwsh description, B2 front-loads pwsh exit codes, and B3 reports
+`Shell: pwsh`.
 
 PowerShell 7 is recommended but not required. If it is absent, DSH falls back to
 Windows PowerShell 5.1: `&&` and `||` are unavailable there, so use `;` and check
@@ -77,6 +84,9 @@ Windows PowerShell 5.1: `&&` and `||` are unavailable there, so use `;` and chec
 executable.
 
 ## What changes when enabled
+
+The numbers below were measured on the 0.1.2 replace implementation; they are
+not a measurement of the 0.2.0 append change.
 
 The table compares the same DSH and provider configuration with the bundle off
 and on. Hard tasks task-05 through task-08, 3 runs per arm:
@@ -125,9 +135,14 @@ dedicated task.
 
 ## Upgrading
 
-Replacing the bundle while a session is live can leave that session's agent
-scope with the previous tool shadows. Start a new session after an upgrade;
-new sessions always see the current descriptions.
+Installing a different package version requires restarting the profile's server
+(or a plugin reload). A new session in the old process still uses the loaded
+version; restarting the server loads the current package.
+
+A live session that stays in the same process through an HMR plugin reload keeps
+its old tool shadow, because a scoped registration cannot be replaced in place.
+It will not crash or append twice; a new session after the reload gets the
+current descriptions.
 
 ## Development
 
@@ -136,9 +151,6 @@ node --check index.js
 npm pack --dry-run
 ```
 
-Evaluation fixtures and run logs are kept in the development repository, not in
-this package.
-
 ## License
 
 MIT. This is a third-party bundle, not an official DeepSeek package. It is not
@@ -146,9 +158,10 @@ affiliated with Anthropic; Claude Code is a trademark of Anthropic PBC.
 
 ## 中文简介
 
-`dsh-code-prompt` 是一个 DSH bundle：9 条全局工程规则、5 个工具的描述替换
-（`bash` / `pwsh` / `read` / `edit` / `write`），以及默认关闭的工具结果整形和
-环境上下文。它不改工具实现、参数 schema、sandbox 或文件系统语义。
+`dsh-code-prompt` 是一个 DSH bundle：9 条全局工程规则、4 个工具的描述追加
+（`bash` / `read` / `edit` / `write`，另在 Windows 给 `pwsh` 追加 5.1 提示），
+以及默认关闭的工具结果整形和环境上下文。`descriptions` 可整段替换，
+`additions` 可覆盖追加文本。它不改工具实现、参数 schema、sandbox 或文件系统语义。
 
 同一 provider 配置下开启 A1+A2 后，硬任务平均新增行 4.8 → 2.8，工具调用
 13.8 → 12.7，input 6,834 → 6,030，时长 21.6s → 17.2s；两臂均 36/36 通过。

@@ -2,7 +2,9 @@
 #
 # Inserts the plugin globally. The plugin registers:
 # - a global system section `dsh-code-prompt:engineering-rules` (order 100);
-# - per-agent tool-description shadows for bash/read/edit/write;
+# - per-agent tool-description shadows that append ADDITIONS to bash/read/edit/
+#   write, plus a Windows PowerShell 5.1 note for pwsh; `config.descriptions`
+#   can still fully replace a tool description;
 # - optional B2 result shaping for edit no-match errors and bash exit markers;
 # - optional B3 environment context (platform/OS/shell/git repository).
 #

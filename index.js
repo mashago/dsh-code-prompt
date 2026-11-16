@@ -1,7 +1,9 @@
-// dsh-code-prompt v0.1.0
+// dsh-code-prompt v0.2.0
 //
-// Purpose: shadow selected built-in tools per agent and replace their
-// model-facing descriptions with DSH-specific guidance.
+// Purpose: shadow selected built-in tools per agent and append DSH-specific
+// guidance to their model-facing descriptions. `config.descriptions` can still
+// fully replace a description (0.1.x behavior); `config.additions` appends a
+// suffix and is the default path.
 //
 // Why this shape: a global prompt section cannot change a tool's schema.
 // The tools registry lets a scoped registration shadow a global one with the
@@ -35,7 +37,10 @@ const RULES = [
 
 /*
  * Official DSH 0.2.2-rc.3 tool descriptions (baseline for review).
- * If upstream changes these, review and update DESCRIPTIONS below.
+ * If upstream changes these, review and update ADDITIONS below.
+ *
+ * A2 appends ADDITIONS to these upstream texts; it does not copy them.
+ * grep/glob are not covered in 0.2.0; their 250/100 caps are config-driven.
  *
  * bash:
  * Execute a bash command (`bash -c`) and return its stdout/stderr. Each call
@@ -80,51 +85,31 @@ const RULES = [
  * Create or fully replace a UTF-8 text file.
  */
 
-const DESCRIPTIONS = {
+const ADDITIONS = {
   bash: [
-    'Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell; pass `workdir` instead of using `cd`, and prefer absolute paths. Quote paths that contain spaces. Managed `$DSH_*` variables expose current harness environment facts. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Provide `description` before `command` in the arguments.',
+    'Prefer absolute paths, and quote paths that contain spaces.',
     '',
-    'Use dedicated tools for file work: read instead of cat/head/tail/sed, edit instead of sed/awk, glob instead of find, grep instead of grep/rg. Reserve bash for shell-only operations such as builds, tests, git, and process control.',
+    'Reserve bash for shell-only operations such as builds, tests, git, and process control.',
     '',
-    'When issuing multiple commands:',
-    '- If the commands are independent, issue multiple bash calls in parallel in one response.',
-    '- If they depend on each other, chain them with `&&`; use `;` only when earlier failures do not matter.',
-    '- Do not separate commands with newlines (newlines are fine inside quoted strings).',
+    'When issuing multiple commands, chain dependent ones with `&&`; use `;` only when earlier failures do not matter.',
     '',
-    'For long-running work, use `run_in_background`; you are notified when the job finishes. Do not poll or sleep on it; continue independent work and collect the result with `job_output` when needed. Before any delete or move, verify that the resolved absolute target path is the intended one; never run it against a computed path you have not checked. An unset variable expands to an empty string, so guard variables in such paths with `${VAR:?}`. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]`, a policy denial: do not retry another way.',
+    'For long-running work, use `run_in_background` and collect the result with `job_output` when you need it.',
+    '',
+    'Set `timeoutMs` when a command legitimately runs long; it is this call\'s budget, not a failure to retry. Never run a command that expects interactive input (editors, `git rebase -i`, interactive ssh): there is no TTY and stdin is /dev/null, so such commands fail or hang with no way to answer.',
     '',
     'For git: do not commit or push unless the user asks; never skip hooks with `--no-verify` to manufacture a passing check.',
   ].join('\n'),
   pwsh: [
-    'Execute a PowerShell command (`pwsh -Command`) and return its stdout/stderr. Each call runs in a fresh pwsh process; pass `workdir` instead of using `cd`. Paths use native Windows form (`C:\\...`); read environment variables with `$env:NAME`. Managed `$env:DSH_*` variables expose current harness environment facts. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. On Windows a force-killed command settles as `[exit code: 1]` without a signal marker — treat it as an interruption, not a command failure. Provide `description` before `command` in the arguments.',
-    '',
-    'Use dedicated tools for file work: read instead of Get-Content, edit instead of Set-Content/-replace, glob instead of Get-ChildItem -Recurse for discovery, grep instead of Select-String. Reserve pwsh for shell-only operations such as builds, tests, git, and process control.',
-    '',
-    'When issuing multiple commands:',
-    '- If the commands are independent, issue multiple pwsh calls in parallel in one response.',
-    '- If they depend on each other, chain them explicitly in one command; PowerShell 7 supports `&&` and `||`, but Windows PowerShell 5.1 (the fallback when pwsh 7 is absent) does not — use `;` and check `$LASTEXITCODE` there.',
-    '- Prefer one command per call; do not rely on newline-separated commands.',
-    '',
-    'For long-running work, use `run_in_background`; you are notified when the job finishes. Do not poll or sleep on it; continue independent work and collect the result with `job_output` when needed. Before any delete or move, verify that the resolved absolute target path is the intended one; never run it against a computed path you have not checked. Do not assign to automatic variables such as `$HOME`; variable names are case-insensitive. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]`, a policy denial: do not retry another way.',
-    '',
-    'Under the Windows sandbox, read-only pwsh runs in ConstrainedLanguage mode: .NET static calls, Add-Type, COM, and reflection may fail; named-pipe stdio capture may fail with EPERM. Escalate once or restructure the command; do not retry another way.',
-    '',
-    'For git: do not commit or push unless the user asks; never skip hooks with `--no-verify` to manufacture a passing check.',
+    'If the deployment falls back to Windows PowerShell 5.1, `&&` and `||` are unavailable; use `;` and check `$LASTEXITCODE`.',
   ].join('\n'),
   read: [
-    'Read a UTF-8 text file and return line-numbered content.',
-    '',
-    'Use offset and limit to read a line range or continue a large file. Read a file before editing it; never claim to have inspected a file you have not read. Do not re-read a file you already read unless it changed or you need a different range. The line-number prefix is display-only; do not include it in old_string.',
+    'Omit offset and limit to read from the start; by default one call returns at most 2000 lines and 50 KiB, and a missing path returns an error — pass the path you intend and let the error confirm absence. The line-number prefix is display-only; never copy it into `old_string`. Do not re-read a file you already read unless it changed or you need a different range.',
   ].join('\n'),
   edit: [
-    'Edit an existing UTF-8 text file by replacing literal text.',
-    '',
-    'Read the file first. `old_string` must match the file exactly, including indentation and whitespace, and must be unique unless `replace_all` is true; include enough surrounding context to make it unique. Do not include the line-number prefix from read output. Prefer edit over write for targeted changes; do not rewrite the whole file. If the edit fails, re-read the relevant range and adjust rather than guessing.',
+    '`old_string` must match the file exactly (line endings are normalized), including indentation and whitespace, and must appear exactly once unless `replace_all` is true; include enough surrounding context to make it unique. Do not include the line-number prefix from read output. If the tool reports an ambiguous match, narrow `old_string` or set `replace_all` rather than guessing; if it reports no match, re-read the relevant range and adjust.',
   ].join('\n'),
   write: [
-    'Create or fully replace a UTF-8 text file.',
-    '',
-    'Read an existing file before overwriting it; prefer edit for targeted changes. Use write only for a new file or a complete replacement, and provide the full final content.',
+    'Use write only for a new file or a complete replacement, and provide the full final content; an empty string is valid content.',
   ].join('\n'),
 }
 
@@ -146,7 +131,13 @@ export function apply(ctx, config = {}) {
 }
 
 function installToolDescriptions(ctx, config) {
-  const overrides = { ...DESCRIPTIONS, ...(config.descriptions ?? {}) }
+  const additions = {
+    ...ADDITIONS,
+    ...(typeof config.additions === 'object' && config.additions !== null ? config.additions : {}),
+  }
+  const replacements = typeof config.descriptions === 'object' && config.descriptions !== null
+    ? config.descriptions
+    : {}
 
   const installed = new WeakMap()
   const install = agent => {
@@ -160,20 +151,38 @@ function installToolDescriptions(ctx, config) {
       done = new Set()
       installed.set(agent, done)
     }
-    for (const [toolName, description] of Object.entries(overrides)) {
-      if (typeof description !== 'string' || description.length === 0) continue
+    for (const toolName of new Set([...Object.keys(additions), ...Object.keys(replacements)])) {
       if (done.has(toolName)) continue
       const original = tools.get(toolName, scope)
       if (original === undefined) continue
+      if (typeof original.description !== 'string') continue
+
+      const replacement = replacements[toolName]
+      const suffix = additions[toolName]
+      const useReplacement = typeof replacement === 'string' && replacement.length > 0
+      const useAddition = !useReplacement && typeof suffix === 'string' && suffix.length > 0
+      const description = useReplacement
+        ? replacement
+        : useAddition
+          ? `${original.description}\n\n${suffix}`
+          : undefined
+      if (description === undefined) continue
+
       // A live session can outlive this plugin instance (HMR or reinstall).
-      // If its scope already exposes this replacement, re-registering throws.
-      if (original.description === description) {
+      // For full replacements, an exact match means the shadow is already ours.
+      // For additions, compare the tail so a second pass does not append twice.
+      if (original.description === description
+        || (useAddition && original.description.endsWith(`\n\n${suffix}`))) {
         done.add(toolName)
         continue
       }
+
       try {
         tools.register({ ...original, description })
       } catch (error) {
+        // A live 0.1.x session already holds a full-replacement shadow. There is
+        // no public API to replace a scoped registration; the session keeps the
+        // old text until a new session/restart. Swallowing this is intentional.
         if (!(error instanceof Error) || !error.message.includes('already registered in this scope')) throw error
       }
       done.add(toolName)

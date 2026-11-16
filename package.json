@@ -1,6 +1,6 @@
 {
   "name": "dsh-code-prompt",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Claude-Code-style prompt, tool-description, and environment-context levers for DeepSeek Harness (DSH).",
   "type": "module",
   "main": "index.js",
