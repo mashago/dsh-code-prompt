@@ -1,5 +1,7 @@
 # dsh-code-prompt
 
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness) [![Listed on dsh-plugin.org](https://dsh-plugin.org/badges/listed.svg)](https://dsh-plugin.org/plugins/mashago/dsh-code-prompt)
+
 Claude-Code-style prompt, tool-description, and environment-context levers for
 DeepSeek Harness (DSH).
 
